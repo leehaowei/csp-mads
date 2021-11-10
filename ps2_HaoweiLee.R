@@ -28,20 +28,21 @@ mu.PI <- apply(mu, 2 ,PI, prob=0.89)       # set the credibility interval to 89%
 # Assignm variables to create a dataframe
 Individual <- c(1,2,3,4,5)
 expected_height = mu.mean
-lower_bound_5 <- mu.PI[1,]   # first column in PI is the lower bound
-upper_bound_94 <- mu.PI[2,]  # second column in PI is the upper bound 
+lower_bound_5.5 <- mu.PI[1,]   # first row in PI is the lower bound
+upper_bound_94.5 <- mu.PI[2,]  # second row in PI is the upper bound 
 
 # create and print out the dataframe
 df <- data.frame(Individual, weights, expected_height, 
-                 lower_bound_5, upper_bound_94)
+                 lower_bound_5.5, upper_bound_94.5)
 print (df)
-
 
 
 # PS2-2a
 # standardize weight and weight^2
-d$weight_s <- ( d$weight - mean(d$weight) )/sd(d$weight)
-d$weight_s2 <- d$weight_s^2
+xsd <- sd(d2$weight)
+d2$weight_s <- ( d2$weight - mean(d2$weight) )/xsd
+d2$weight_s2 <- d2$weight_s^2
+
 
 # polynomial model from Chapter 4
 poly_model <- quap(
@@ -52,47 +53,87 @@ poly_model <- quap(
     b1 ~ dlnorm( 0 , 1 ) ,
     b2 ~ dnorm( 0 , 1 ) ,
     sigma ~ dunif( 0 , 50 )
-  ), data=d )
+  ), data=d2 )
 
-# define a function to plot n lines
-plot_curves <- function(a, b1, b2, n) 
+
+# define a function to plot n lines for Standerdised
+plot_poly_sd <- function(a, b1, b2, n) 
 {
-  # set the limitation of the figure
-  plot( NULL, xlim=range(d$weight), ylim=c(-100, 400),
+  # plot the figure and customize settings
+  plot( NULL, xlim=range(d2$weight), ylim=c(0, 300),
+        xlab="weight", ylab="height")
+  
+  # plot n curve lines 
+  for (i in 1:n) curve( a[i] + b1[i] * (x-xbar)/xsd + b2[i] * ((x-xbar)/xsd)^2,
+                        from=min(d2$weight), 
+                        to=max(d2$weight), 
+                        add  = TRUE,
+                        col=rangi2)
+}
+
+# define a function to plot n lines for Unstanderdised
+plot_poly_unsd <- function(a, b1, b2, n) 
+{
+  # plot the figure and customize settings
+  plot( NULL, xlim=range(d2$weight), ylim=c(0, 300),
         xlab="weight", ylab="height")
   
   # plot n curve lines 
   for (i in 1:n) curve( a[i] + b1[i] * x + b2[i] * x^2,
-                        from=min(d$weight), 
-                        to=max(d$weight), 
+                        from=min(d2$weight), 
+                        to=max(d2$weight), 
                         add  = TRUE,
-                        col=col.alpha("black", 0.2))
+                        col=rangi2)
 }
-
 set.seed(10)
 
 # extract priors from the polynomial model
 priors <- extract.prior( poly_model )
-a <- priors$a
-b1 <- priors$b1
-b2 <- priors$b2
-sigma <- priors$sigma
-plot_curves(a, b1, b2, 100)
+a <- priors$a           # a ~ dnorm( 178 , 20 )
+b1 <- priors$b1         # b1 ~ dlnorm( 0 , 1 ) 
+b2 <- priors$b2         # b2 ~ dnorm( 0 , 1 ) 
+sigma <- priors$sigma   #   sigma ~ dunif( 0 , 50 )
+plot_poly_sd(a, b1, b2, 50)
+mtext( "Standarised" )
+
+plot_poly_unsd(a, b1, b2, 50)
+mtext( "Unstandarised" )
 
 
-# PS2-2b-1
-N <- 1000
+# PS2-2b-1 (first try)
+N <- 1000   # number of samples
 b2 <- rexp(N, 20)
-plot_curves(a, b1, b2, 100)
+plot_poly_sd(a, b1, b2, 50)
+mtext( "Exponancial" )
 
 
-# PS2-2b-2
-n <- 1000
-a = rnorm(n, -50, 3)
-b1 = rnorm(n, 11, 0.18)
-b2 = runif(n, -0.12, -0.1)
-plot_curves(a, b1, b2, 100)
+# PS2-2b-2 (second try)
+N <- 1000   # number of samples
+a <- rnorm(N, 172, 18)
+b1 <- rlnorm(N, 2.1, 0.3)
+b2 <- rlnorm(N, 1, 0.05)
+plot_poly_sd(a, b1, -b2, 50)   # add negetive to b2
+mtext( "Final_Version" )
 
+
+# Compare
+par(mfrow = c(1, 2))
+# left
+priors <- extract.prior( poly_model )
+a <- priors$a           # a ~ dnorm( 178 , 20 )
+b1 <- priors$b1         # b1 ~ dlnorm( 0 , 1 ) 
+b2 <- priors$b2         # b2 ~ dnorm( 0 , 1 ) 
+sigma <- priors$sigma   #   sigma ~ dunif( 0 , 50 )
+plot_poly_sd(a, b1, b2, 50)
+mtext( "Original_Standarised" )
+
+# right
+N <- 1000   # number of samples
+a <- rnorm(N, 172, 18)
+b1 <- rlnorm(N, 2.1, 0.3)
+b2 <- rlnorm(N, 1, 0.05)
+plot_poly_sd(a, b1, -b2, 50)   # add negetive to b2
+mtext( "Final_Version" )
 
 
 # PS2-3a
