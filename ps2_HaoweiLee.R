@@ -4,8 +4,8 @@ data(Howell1)
 d <- Howell1
 
 # PS2-1
-d2 <- d[ d$age >= 18 , ]
-xbar <- mean(d2$weight)
+adult <- d[ d$age >= 18 , ]
+xbar <- mean(adult$weight)
 
 # model
 m4.3 <- quap(
@@ -15,7 +15,7 @@ m4.3 <- quap(
     a ~ dnorm( 178 , 20 ),
     b ~ dlnorm( 0 , 1 ),
     sigma ~ dunif( 0 , 50 ) 
-  ), data=d2 )
+  ), data=adult )
 
 weights = c(46, 61, 35, 52, 56)            # define target weights
 
@@ -39,9 +39,9 @@ print (df)
 
 # PS2-2a
 # standardize weight and weight^2
-xsd <- sd(d2$weight)
-d2$weight_s <- ( d2$weight - mean(d2$weight) )/xsd
-d2$weight_s2 <- d2$weight_s^2
+xsd <- sd(adult$weight)
+adult$weight_s <- ( adult$weight - mean(adult$weight) )/xsd
+adult$weight_s2 <- adult$weight_s^2
 
 
 # polynomial model from Chapter 4
@@ -53,38 +53,25 @@ poly_model <- quap(
     b1 ~ dlnorm( 0 , 1 ) ,
     b2 ~ dnorm( 0 , 1 ) ,
     sigma ~ dunif( 0 , 50 )
-  ), data=d2 )
+  ), data=adult )
 
 
 # define a function to plot n lines for Standerdised
 plot_poly_sd <- function(a, b1, b2, n) 
 {
   # plot the figure and customize settings
-  plot( NULL, xlim=range(d2$weight), ylim=c(0, 300),
+  plot( NULL, xlim=range(adult$weight), ylim=c(0, 300),
         xlab="weight", ylab="height")
   
   # plot n curve lines 
   for (i in 1:n) curve( a[i] + b1[i] * (x-xbar)/xsd + b2[i] * ((x-xbar)/xsd)^2,
-                        from=min(d2$weight), 
-                        to=max(d2$weight), 
+                        from=min(adult$weight), 
+                        to=max(adult$weight), 
                         add  = TRUE,
                         col=rangi2)
 }
 
-# define a function to plot n lines for Unstanderdised
-plot_poly_unsd <- function(a, b1, b2, n) 
-{
-  # plot the figure and customize settings
-  plot( NULL, xlim=range(d2$weight), ylim=c(0, 300),
-        xlab="weight", ylab="height")
-  
-  # plot n curve lines 
-  for (i in 1:n) curve( a[i] + b1[i] * x + b2[i] * x^2,
-                        from=min(d2$weight), 
-                        to=max(d2$weight), 
-                        add  = TRUE,
-                        col=rangi2)
-}
+
 set.seed(10)
 
 # extract priors from the polynomial model
@@ -96,6 +83,21 @@ sigma <- priors$sigma   #   sigma ~ dunif( 0 , 50 )
 plot_poly_sd(a, b1, b2, 50)
 mtext( "Standarised" )
 
+
+# define a function to plot n lines for Unstanderdised
+plot_poly_unsd <- function(a, b1, b2, n) 
+{
+  # plot the figure and customize settings
+  plot( NULL, xlim=range(adult$weight), ylim=c(0, 300),
+        xlab="weight", ylab="height")
+  
+  # plot n curve lines 
+  for (i in 1:n) curve( a[i] + b1[i] * x + b2[i] * x^2,
+                        from=min(adult$weight), 
+                        to=max(adult$weight), 
+                        add  = TRUE,
+                        col=rangi2)
+}
 plot_poly_unsd(a, b1, b2, 50)
 mtext( "Unstandarised" )
 
@@ -136,7 +138,7 @@ plot_poly_sd(a, b1, -b2, 50)   # add negetive to b2
 mtext( "Final_Version" )
 
 
-# PS2-3a
+# PS2-4a
 library(dagitty)
 
 mad_dag <- dagitty("dag{ M -> A -> D}")
