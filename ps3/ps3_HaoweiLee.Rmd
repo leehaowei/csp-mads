@@ -1,5 +1,5 @@
 ---
-title: ps3_HaoweiLee
+title: 
 output:
   html_document: default
   pdf_document: default
@@ -15,6 +15,7 @@ Module:    Computational Statistics & Probability - MADS <br>
 Professor: Dr. Gregory Wheeler  <br>
 Student:   Haowei Lee  <br>
 Textbook:  Statistical Rethinking 2nd edition  <br>
+* The pdf file is produced by knitting rmd into html and export the result as pdf.
 
 Import libraries
 ```{r, message=FALSE}
@@ -53,6 +54,22 @@ modelA <- quap(
 precis(modelA)   # inspect the result
 ```
 b_area, the coefficient of area, is around 0.018, meaning that territory size barely has a casual influence on weight.
+
+```{r}
+set.seed(100)
+N <- 500
+priors <- extract.prior( modelA )
+a <- priors$a           
+b_area <- priors$b_area        
+
+plot( NULL , xlim=c(-2,2) , ylim=c(-2,2) ,
+      xlab="area" , ylab="weight" )
+xbar <- mean(d$w_s)
+for ( i in 1:N ) curve( a[i] + b_area[i]*(x - xbar) ,
+                        from=min(d$w_s) , to=max(d$w_s) , add=TRUE ,
+                        col=col.alpha("black",0.2) )
+```
+
 
 ##### b)
 ##### Now infer the causal impact of adding food (avgfood) to a territory. Would this make foxes heavier? Which covariates do you need to adjust to estimate the total causal influence of food?
@@ -214,7 +231,7 @@ Group B: m3 and m4 and m5
 
 To understand the reason behind this, we use the DAG provided in question 1 to explore the relationship among the variables.
 
-<img src='../pics/dag.png'>
+<img src='dag.png'>
 
 In Group A, the first two models (m1 and m2) contain groupsize and average food. Since the casual effect of the area goes directly through average food, it is very similar to just considering average food. Therefore, an extra variable area of m1 does not make a lot of difference from m2. The reason of the similarity of these two models is that there is no back-door path from area or avgfood to weight. In other words, the effect of area affecting groupsize is the same as the effect of avgfood affecting groupsize, because the effect of area goes directly and entirely through avgfood.
 

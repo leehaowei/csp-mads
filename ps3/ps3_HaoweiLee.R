@@ -25,6 +25,19 @@ modelA <- quap(
 
 precis(modelA)   # inspect the result
 
+set.seed(2971)
+N <- 500
+priors <- extract.prior( modelA )
+a <- priors$a # a ~ dnorm( 178 , 20 )
+b_area <- priors$b_area # b1 ~ dlnorm( 0 , 1 )
+plot( NULL , xlim=c(-2,2) , ylim=c(-2,2) ,
+      xlab="area" , ylab="weight" )
+# mtext( "b ~ dnorm(0,10)" )
+xbar <- mean(d$w_s)
+for ( i in 1:N ) curve( a[i] + b_area[i]*(x - xbar) ,
+                        from=min(d$w_s) , to=max(d$w_s) , add=TRUE ,
+                        col=col.alpha("black",0.2) )
+
 # 1-b
 d$f_s <- standardize(d$avgfood)
 modelB <- quap(
