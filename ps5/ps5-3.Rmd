@@ -1,0 +1,25 @@
+---
+title: "ps5-3"
+author: "Haowei Lee"
+date: "12/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Question 3
+Rewrite the following model as a multilevel model.<br>
+<div style="text-align: center;">
+  <img src="q3.png" width="200" height="150">
+</div>
+
+```{text}
+y_i ~ Binomial(1,p_i)
+logit(p_i) = a[i] + b*x_i
+a[i] ~ Normal(a_bar, sigma_a)
+b ~ Normal(0,0.5)
+a_bar ~ Normal(0, 1.5)    # extra parameters, hyper-priors, to construct a multi-level model
+sigma_a ~ Exponential(1)
+```

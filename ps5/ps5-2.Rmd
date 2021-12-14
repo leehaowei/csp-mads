@@ -1,0 +1,129 @@
+---
+title: "ps5-2"
+author: "Haowei Lee"
+date: "12/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide'}
+# Import libraries
+library(rethinking)
+library(dagitty)
+library(cmdstanr)
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide'}
+# Preprocessing
+data(Trolley)
+d <- Trolley 
+
+edu_levels <- c( 6 , 1 , 8 , 4 , 7 , 2 , 5 , 3 )
+d$edu_new <- edu_levels[ d$edu ]
+
+data <- list(
+  R = d$response,
+  action = d$action,
+  intention = d$intention,
+  contact = d$contact,
+  E = as.integer( d$edu_new ),
+  
+  edu_norm = normalize( d$edu_new),  # normalize education to ensure values only ranges from 0 t0 1
+  age = standardize( d$age),         # standardize age
+  
+  alpha = rep(2,7)                   # delta prior
+)
+```
+
+### Question 2
+<b> a) Draw a DAG </b>
+<b>DAG2</b>
+<div style="text-align: center;">
+  <img src="dag2.png" width="250" height="230">
+</div>
+
+```{text}
+# Model code to create the DAG on on dagitty.net
+dag {
+  bb="-1.7,-1.95,2.1,2.1"
+  A [pos="0.779,-0.118"]
+  E [pos="-0.714,-0.118"]
+  G [pos="-1.460,1.791"]
+  R [pos="0.033,1.791"]
+  A -> E
+  A -> R
+  E -> R
+  G -> E
+  G -> R
+}
+```
+
+To find out which variable should we condition on to block back doors casual influence.
+```{r}
+dag2 <- dagitty("dag{
+    E -> R <- A
+    A -> E
+    G -> E
+    G -> R
+}")
+adjustmentSets( dag2 , exposure="E" , outcome="R" , effect="total" )
+```
+
+Just as problem 1, we should also condition on A(age). And so should we do the same on G(gender). We never know if there is any hidden back door for casual influence among the variables. So, the condition on all variables in the DAG would be a save strategy.
+
+<b> b) Define any additional models you need to infer the causal influence of education on response. </b>
+
+Applied One-Hot-Encoding to transform categorical variable
+```{r}
+data$female <- ifelse( d$male==1 , 0L , 1L )
+```
+
+Build the model
+(The model was built referring to code block 12.34 in the textbook.) 
+```{r, message=FALSE, results='hide', warning = FALSE}
+model_Q2 <- ulam(
+    alist(
+        R ~ ordered_logistic( phi , kappa ),
+        phi <- bE*sum( delta_j[1:E] ) + bA*action + bC*contact + BI*intention +
+               bAge*age + bF*female,
+        BI <- bI + bIA*action + bIC*contact ,
+        c(bA,bI,bC,bIA,bIC,bE,bAge,bF) ~ normal( 0 , 0.5 ),
+        kappa ~ normal( 0 , 1.5 ),
+        vector[8]: delta_j <<- append_row( 0 , delta ),
+        simplex[7]: delta ~ dirichlet( alpha )
+    ), data=data , chains=4 , cores=4, cmdstan=TRUE)
+```
+
+Review the training process
+```{r}
+show(model_Q2)
+```
+
+Plot out the MCMC chains
+```{r, message=FALSE}
+traceplot(model_Q2)
+```
+
+<b> c) What do you conclude? </b>
+
+Inspect the result
+```{r, message=FALSE}
+options(digits = 2) #set to two decimal
+precis(model_Q2)
+```
+
+```{r}
+plot(precis(model_Q2, 2))
+```
+
+<div>
+By observing the result of precis and its plot, we can conclude the following:
+  <ul>
+    <li>Age has a slightly negative impact on the response, for the mean at around -0.07.</li>
+    <li>Gender negatively influences response, with a mean around -0.56. This implies that females tend to give lower responses. However, there is one issue that we should take into consideration. That is, whether we have unbalanced data in terms of age and gender. For example, even though the total number of male and female respondents could be the same, they could be distributed differently, making that in a specific age range, there are more women or men, affecting the result of causal inference. </li>
+    <li>Education: Comparing with the first model, the coefficient of education in this model drops to 0.03 that is almost zero, showing trivial effect on the response</li>
+  </ul>
+</div>

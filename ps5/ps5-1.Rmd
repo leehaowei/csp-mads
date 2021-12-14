@@ -1,0 +1,144 @@
+---
+title: "ps5-1"
+author: "Haowei Lee"
+date: "12/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### CSP Assignment ps5
+Module:    Computational Statistics & Probability - MADS <br>
+Professor: Dr. Gregory Wheeler  <br>
+Student:   Haowei Lee  <br>
+Textbook:  Statistical Rethinking 2nd edition  <br>
+* The pdf file is produced by knitting Rmd into html and export the result as pdf. <br>
+* The assignment is split into three Rmd files and the pdf was created by putting the results of all three
+  Rmd files. The reason is that the training time for each MCMC model takes a long time and calculation, making my laptop super hot. 
+  
+Import libraries
+```{r, message=FALSE}
+library(rethinking)
+library(dagitty)
+library(cmdstanr)
+```
+
+Import and inspect the dataset
+```{r}
+options(digits = 2) #set to two decimal
+data(Trolley)
+d <- Trolley 
+precis( d )
+```
+
+### Question 1
+<b> a) Draw a DAG that represents hypothetical causal relationships among response, education, and age.</b>
+
+The DAG was built on <a href="http://www.dagitty.net/dags.html">dagitty.net</a> with the model code below, and then screenshot as a picture.
+
+<b>DAG1</b>
+<div style="text-align: center;">
+  <img src="dag1.png" width="250" height="230">
+</div>
+<b>E</b>  Education <br>
+<b>A</b>  Age <br>
+<b>R</b>  Response <br>
+```{text}
+# Model code to create the DAG on on dagitty.net
+dag {
+  bb="-1.7,-1.95,2.1,2.1"
+  A [pos="0.779,-0.118"]
+  E [pos="-0.714,-0.118"]
+  R [pos="0.033,1.100"]
+  A -> E
+  A -> R
+  E -> R
+}
+```
+<div>
+</b> b) Identify which statistical model or models are required to evaluate the causal influence of education on responses.</b>
+</div>
+
+
+```{r}
+dag <- dagitty("dag{
+    E -> R <- A
+    A -> E
+}")
+adjustmentSets( dag , exposure="E" , outcome="R" , effect="total" )
+```
+
+
+To study the impact on R from E, we should block all possible back doors from E to R through A because there might be a hidden one. To achieve our goal, we need to condition on A, as the code shown above.
+
+##### Start building the model
+In the Trolley dataset, we have 8 categories of education level. The code below reorder them in the proper order.
+```{r}
+# reorder and transform the categorical variable: education level
+edu_levels <- c( 6 , 1 , 8 , 4 , 7 , 2 , 5 , 3 )
+d$edu_new <- edu_levels[ d$edu ]
+```
+
+Build data list containing only features / predictors that will be used in our model.
+```{r}
+data <- list(
+  R = d$response,
+  action = d$action,
+  intention = d$intention,
+  contact = d$contact,
+  E = as.integer( d$edu_new ),
+  
+  edu_norm = normalize( d$edu_new),  # normalize education to ensure values only ranges from 0 to 1
+  age = standardize( d$age),         # standardize age
+  
+  alpha = rep(2,7)                   # delta prior
+)
+```
+
+Build the model
+(The model was built referring to code block 12.34 in the textbook.) 
+```{r, message=FALSE, results='hide', warning = FALSE}
+model_Q1 <- ulam(
+  alist(
+    R ~ ordered_logistic( phi , kappa ),
+    phi <- bE*sum( delta_j[1:E] ) + bA*action + bC*contact + BI*intention + bAge*age,
+    BI <- bI + bIA*action + bIC*contact ,
+    c(bA,bI,bC,bIA,bIC,bE,bAge) ~ normal( 0 , 0.5 ),
+    kappa ~ normal( 0 , 1.5 ),
+    vector[8]: delta_j <<- append_row( 0 , delta ),
+    simplex[7]: delta ~ dirichlet( alpha )
+  ), data=data , chains=4 , cores=4, cmdstan=TRUE)
+```
+
+Review the training process
+```{r}
+show(model_Q1)
+```
+
+Plot out the MCMC chains
+```{r, message=FALSE}
+traceplot(model_Q1)
+```
+
+<b>c) What do you conclude about the causal relationships among these three variables?</b>
+
+Inspect the result
+```{r, message=FALSE}
+options(digits = 2) #set to two decimal
+precis(model_Q1)
+```
+
+From the traceplot in section b, we can see that the chains are converging. However, the n_eff (effective samples) are far away from the 2000 samples we have. On the other hand, the Rhats are all one, and that is a good sign.
+
+```{r}
+plot(precis(model_Q1, 2))
+```
+<div>
+By observing the result of precis and its plot, we can conclude the following:
+  <ul>
+    <li>Age has a slightly negative impact on the response, for the mean at -0.10. Because the effect is so small, this should be some effect other than a casual effect.</li>
+    <li>Education has a positive impact on the response, for the mean at -0.23. This implies that education could affect people to consider the action, intention and contact more acceptable.</li>
+  </ul>
+</div>

@@ -1,0 +1,127 @@
+---
+title: "Posterior Simulation: link vs sim"
+author: "Haowei Lee"
+date: "12/13/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Import libraries
+```{r, message=FALSE}
+library(rethinking)
+```
+
+##### Review of simulation for posterior and of difference between link and sim
+Import data
+```{r}
+# Import the data
+data(Howell1)
+d <- Howell1
+adult <- d[ d$age >= 18 , ]  # filter only adult
+```
+<br>
+define the average weight, x-bar
+```{r}
+xbar <- mean(adult$weight)
+```
+<br>
+fit model
+```{r}
+model <- quap(
+  alist(
+    height ~ dnorm( mu , sigma ) ,
+    mu <- a + b*( weight - xbar ) ,
+    a ~ dnorm( 178 , 20 ) ,
+    b ~ dlnorm( 0 , 1 ) ,
+    sigma ~ dunif( 0 , 50 )
+  ) , data=adult )
+
+precis( model )
+```
+
+```{r}
+# first plot
+# plot( height ~ weight , data=adult , col=rangi2 )
+plot( height ~ weight , data=adult , col=col.alpha(rangi2,0.5))
+      
+post <- extract.samples( model )
+a_map <- mean(post$a)
+b_map <- mean(post$b)
+curve( a_map + b_map*(x - xbar) , add=TRUE )
+```
+<br>
+<code>link</code>
+```{r}
+# define sequence of weights to compute predictions for
+# these values will be on the horizontal axis
+weight.seq <- seq( from=25 , to=70 , by=1 )
+
+# use link to compute mu for each sample from posteriorand for each weight in weight.seq
+mu <- link( model , data=data.frame(weight=weight.seq) )
+
+# summarize the distribution of mu
+mu.mean <- apply( mu , 2 , mean )
+mu.PI <- apply( mu , 2 , PI , prob=0.89 )
+
+# plot raw data
+plot( height ~ weight , data=adult , col=col.alpha(rangi2,0.5) )
+# plot the MAP line, aka the mean mu for each weight
+lines( weight.seq , mu.mean )
+# plot a shaded region for 89% PI
+shade( mu.PI , weight.seq )
+```
+<br>
+<code>sim</code>
+```{r}
+# Use sim to consider uncertainty in th process using Gaussian
+sim.height <- sim( model , data=list(weight=weight.seq) )
+
+height.PI <- apply( sim.height , 2 , PI , prob=0.89 )
+
+# plot raw data
+plot( height ~ weight , adult , col=col.alpha(rangi2,0.5) )
+# draw MAP line
+lines( weight.seq , mu.mean )
+# draw HPDI region for line
+shade( mu.PI , weight.seq )
+# draw PI region for simulated heights
+shade( height.PI , weight.seq )
+```
+
+
+```{r}
+par(mfrow = c(1, 3))         # define figure and plot
+
+# plot 1
+plot( height ~ weight , data=adult , col=col.alpha(rangi2,0.5))
+post <- extract.samples( model )
+a_map <- mean(post$a)
+b_map <- mean(post$b)
+curve( a_map + b_map*(x - xbar) , add=TRUE )
+
+# plot 2
+plot( height ~ weight , data=adult , col=col.alpha(rangi2,0.5) )
+# plot the MAP line, aka the mean mu for each weight
+lines( weight.seq , mu.mean )
+# plot a shaded region for 89% PI
+shade( mu.PI , weight.seq )
+
+# plot 3
+plot( height ~ weight , adult , col=col.alpha(rangi2,0.5) )
+# draw MAP line
+lines( weight.seq , mu.mean )
+# draw HPDI region for line
+shade( mu.PI , weight.seq )
+# draw PI region for simulated heights
+shade( height.PI , weight.seq )
+```
+
+##### Reference
+<code>extract.samples</code>
+- lists of samples for <b>posterior</b> distributions
+
+<code>extract.prior</code>
+- lists of samples for <b>prior</b> distributions

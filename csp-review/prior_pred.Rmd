@@ -1,0 +1,147 @@
+---
+title: "Prior Prediction"
+author: "Haowei Lee"
+date: "12/13/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Import libraries
+```{r, message=FALSE}
+library(rethinking)
+```
+
+##### Review of prior pediction using the milk data of chapter 5
+Import data
+```{r}
+# Import the data
+data(milk) # 5.27 @ 148
+d <- milk
+precis(d)  # inspect the data
+```
+
+<b>Step 1</b><br>
+<b>Standardize</b> the variable by applying <code>scale</code>; and assign them into dataframe
+```{r}
+d$K <- scale(d$kcal.per.g)
+d$N <- scale(d$neocortex.perc)
+d$M <- scale(log(d$mass))  # here's a log
+```
+<br>
+<b>Step 1-2</b> optional<br>
+Drop missing value <b>(NA)</b> using <code>complete.cases</code>
+```{r}
+dcc <- d[complete.cases(d$k, d$N, d$M), ]
+```
+<br>
+<b>Step 2</b><br>
+Build the <b>model</b> by applying <code>quap</code>
+```{r, message=FALSE, results='hide'}
+m5.5_draft <- quap(
+  alist(
+    K ~ dnorm(mu, sigma),
+    mu <- a + bN*N,        # linear relationship
+    a ~ dnorm(0, 1),       # we guess prior and its distribution
+    bN ~ dnorm(0, 1),      # also based on guess
+    sigma ~ dexp(1)
+  ), data = dcc
+)
+```
+<br>
+<b>Step 3-1</b><br>
+Extract <b>priors</b> from our model using <code>extract.prior</code>
+```{r}
+prior <- extract.prior(m5.5_draft)
+```
+<br>
+<b>Step 3-2</b><br>
+Plot prior predictive distribution / <b>prior prediction</b>
+```{r}
+xseq <- c(-2, 2) # define the limit of x-axis
+mu <- link(m5.5_draft, post=prior, data=list(N=xseq))  # calculate the distribution by giving  model, prior, and data
+
+# plot
+plot(NULL, xlim=xseq, ylim=xseq)     # create figure
+
+for (i in 1:50) lines(               # plot N of lines using for loop
+        xseq,                        # data point
+        mu[i, ],                     # each combination of two points
+        col=col.alpha("black", 0.3)  # specify the color
+        )
+```
+<div>
+The result is not informative, let's revise our prior
+</div>
+<br>
+<b>Step 4-1</b><br>
+<b>Revise</b> prior to see if the prior prediction looks more reasonable
+```{r, message=FALSE, results='hide'}
+m5.5 <- quap(
+  alist(
+    K ~ dnorm(mu, sigma),
+    mu <- a + bN*N,        
+    a ~ dnorm(0, 0.2),       # revise the sigma to 0.2 from 1
+    bN ~ dnorm(0, 0.5),      # revise the sigma to 0.5 from 1
+    sigma ~ dexp(1)
+  ), data = dcc
+)
+```
+<br>
+<b>Step 4-2</b><br>
+Plot the prior prediction with revised prior
+```{r}
+prior <- extract.prior(m5.5)
+xseq <- c(-2, 2) # define the limit of x-axis
+mu <- link(m5.5, post=prior, data=list(N=xseq))  # calculate the distribution by giving  model, prior, and data
+
+# plot
+plot(NULL, xlim=xseq, ylim=xseq)     # create figure
+
+for (i in 1:50) lines(               # plot N of lines using for loop
+        xseq,                        # data point
+        mu[i, ],                     # each combination of two points
+        col=col.alpha("black", 0.3)  # specify the color
+        )
+```
+<br>
+<b>Step 5</b><br>
+<b>Compare</b> the result of prior prediction to see which prior is more reasonable /sensible
+```{r}
+par(mfrow = c(1, 2))
+xseq <- c(-2, 2) # define the limit of x-axis
+# first plot
+prior <- extract.prior(m5.5_draft)
+mu <- link(m5.5_draft, post=prior, data=list(N=xseq))  
+plot(NULL, xlim=xseq, ylim=xseq)     # create figure
+for (i in 1:50) lines(               # plot N of lines using for loop
+        xseq,                        # data point
+        mu[i, ],                     # each combination of two points
+        col=col.alpha("black", 0.3)  # specify the color
+        )
+
+# second plot
+prior <- extract.prior(m5.5)
+mu <- link(m5.5, post=prior, data=list(N=xseq))
+plot(NULL, xlim=xseq, ylim=xseq)     # create figure
+
+for (i in 1:50) lines(               # plot N of lines using for loop
+        xseq,                        # data point
+        mu[i, ],                     # each combination of two points
+        col=col.alpha("black", 0.3)  # specify the color
+        )
+```
+<br>
+posterior
+```{r}
+xseq <- seq( from=min(dcc$N)-0.15 , to=max(dcc$N)+0.15 , length.out=30 )
+mu <- link( m5.5 , data=list(N=xseq) )
+mu_mean <- apply(mu,2, mean)
+mu_PI <- apply(mu,2, PI)
+plot( K ~ N , data=dcc )
+lines( xseq , mu_mean , lwd=2 )
+shade( mu_PI , xseq )
+```
+

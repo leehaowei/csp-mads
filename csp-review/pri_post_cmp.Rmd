@@ -1,0 +1,232 @@
+---
+title: "from prior to comparison"
+author: "Haowei Lee"
+date: "12/14/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Import libraries
+```{r, message=FALSE}
+library(rethinking)
+```
+
+##### Review of prior pediction using the milk data of chapter 5
+Import data
+```{r}
+# Import the data
+data(rugged) # 5.27 @ 148
+d <- rugged
+# precis(d)  # inspect the data
+```
+
+Use <code>log</code> to get the logged outcome
+```{r}
+d$log_gdp <- log(d$rgdppc_2000)
+```
+
+Use <code>complete.cases</code> to filter the data, dropping NA value at rgdppc_2000
+```{r}
+dd <- d[complete.cases(d$rgdppc_2000),]
+```
+
+rescale variables
+```{r}
+dd$log_gdp_std <- dd$log_gdp / mean(dd$log_gdp)
+dd$rugged_std <- dd$rugged / max(dd$rugged)
+```
+
+Use <code>quap</code> to build a model
+```{r}
+m8.1_a <- quap(
+  alist(
+    log_gdp_std ~ dnorm(mu, sigma),
+    mu <- a + b*(rugged_std - 0.215),
+    a ~ dnorm(1, 1),
+    b ~ dnorm(0, 1),
+    sigma ~ dexp(1)
+  ), data = dd
+)
+```
+
+Use <code>extract.prior</code> to retrieve prior from our model
+```{r}
+set.seed(7)
+prior_a <- extract.prior(m8.1_a)
+```
+
+Plot the prior prediction using the prior we just got
+```{r}
+# set up the plot dimensions
+plot( NULL , xlim=c(0,1) , ylim=c(0.5,1.5) ,
+    xlab="ruggedness" , ylab="log GDP" )
+abline( h=min(dd$log_gdp_std) , lty=2 )
+abline( h=max(dd$log_gdp_std) , lty=2 )
+
+# draw 50 lines from the prior
+rugged_seq <- seq( from=-0.1 , to=1.1 , length.out=30 )
+mu <- link( m8.1_a , post=prior_a , data=data.frame(rugged_std=rugged_seq) )
+for ( i in 1:50 ) lines( rugged_seq , mu[i,] , col=col.alpha("black",0.3) )
+```
+
+revise the prior
+```{r}
+m8.1_b <- quap(
+    alist(
+        log_gdp_std ~ dnorm( mu , sigma ) ,
+        mu <- a + b*( rugged_std - 0.215 ) ,
+        a ~ dnorm( 1 , 0.1 ) ,
+        b ~ dnorm( 0 , 0.3 ) ,
+        sigma ~ dexp(1)
+    ) , data=dd )
+```
+
+Plot the prior prediction using the prior we just got
+```{r}
+# extract the new priors
+set.seed(7)
+prior_b <- extract.prior(m8.1_b) 
+
+# set up the plot dimensions
+plot( NULL , xlim=c(0,1) , ylim=c(0.5,1.5) ,
+    xlab="ruggedness" , ylab="log GDP" )
+abline( h=min(dd$log_gdp_std) , lty=2 )
+abline( h=max(dd$log_gdp_std) , lty=2 )
+
+# draw 50 lines from the prior
+rugged_seq <- seq( from=-0.1 , to=1.1 , length.out=30 )
+mu <- link( m8.1_b , post=prior_b , data=data.frame(rugged_std=rugged_seq) )
+for ( i in 1:50 ) lines( rugged_seq , mu[i,] , col=col.alpha("black",0.3) )
+```
+
+Compare two plots of different priors
+```{r}
+par(mfrow = c(1, 2))
+# first plot
+# set up the plot dimensions
+plot( NULL , xlim=c(0,1) , ylim=c(0.5,1.5) ,
+    xlab="ruggedness" , ylab="log GDP" )
+abline( h=min(dd$log_gdp_std) , lty=2 )
+abline( h=max(dd$log_gdp_std) , lty=2 )
+
+# draw 50 lines from the prior
+rugged_seq <- seq( from=-0.1 , to=1.1 , length.out=30 )
+mu <- link( m8.1_a , post=prior_a , data=data.frame(rugged_std=rugged_seq) )
+for ( i in 1:50 ) lines( rugged_seq , mu[i,] , col=col.alpha("black",0.3) )
+
+# second plot
+# set up the plot dimensions
+plot( NULL , xlim=c(0,1) , ylim=c(0.5,1.5) ,
+    xlab="ruggedness" , ylab="log GDP" )
+abline( h=min(dd$log_gdp_std) , lty=2 )
+abline( h=max(dd$log_gdp_std) , lty=2 )
+
+# draw 50 lines from the prior
+rugged_seq <- seq( from=-0.1 , to=1.1 , length.out=30 )
+mu <- link( m8.1_b , post=prior_b , data=data.frame(rugged_std=rugged_seq) )
+for ( i in 1:50 ) lines( rugged_seq , mu[i,] , col=col.alpha("black",0.3) )
+```
+
+Inspect the model
+```{r}
+precis( m8.1_b )
+```
+
+
+Deal with categorical variable
+```{r}
+# make variable to index Africa (1) or not (2)
+dd$cid <- ifelse( dd$cont_africa==1 , 1 , 2 )
+```
+
+Construct the second model
+```{r}
+m8.2 <- quap(
+    alist(
+        log_gdp_std ~ dnorm( mu , sigma ) ,
+        mu <- a[cid] + b*( rugged_std - 0.215 ) ,
+        a[cid] ~ dnorm( 1 , 0.1 ) ,
+        b ~ dnorm( 0 , 0.3 ) ,
+        sigma ~ dexp( 1 )
+) , data=dd )
+```
+
+Now to compare these models, using WAIC:
+```{r}
+compare( m8.1_b , m8.2 )
+```
+
+Inspect the model
+```{r}
+precis( m8.2 )
+```
+
+Posterior
+```{r}
+post <- extract.samples(m8.2)
+diff_a1_a2 <- post$a[,1] - post$a[,2]
+PI( diff_a1_a2 )
+```
+
+
+Construct the third model
+```{r}
+m8.3 <- quap(
+    alist(
+        log_gdp_std ~ dnorm( mu , sigma ) ,
+        mu <- a[cid] + b[cid]*( rugged_std - 0.215 ) ,
+        a[cid] ~ dnorm( 1 , 0.1 ) ,
+        b[cid] ~ dnorm( 0 , 0.3 ) ,
+        sigma ~ dexp( 1 )
+) , data=dd )
+```
+
+Inspect the model
+```{r}
+precis( m8.3 , depth=2 )
+```
+
+Compare the models using <code>PSIS</code>
+```{r}
+compare( m8.1_b , m8.2 , m8.3 , func=PSIS )
+```
+
+Make a plot
+```{r}
+plot( PSIS( m8.3 , pointwise=TRUE )$k )
+```
+
+Plot the interaction / posterior
+```{r}
+par(mfrow = c(1, 2))
+
+# plot on the LEFT
+# plot Africa - cid=1
+d.A1 <- dd[ dd$cid==1 , ]
+plot( d.A1$rugged_std , d.A1$log_gdp_std , pch=16 , col=rangi2 ,
+    xlab="ruggedness (standardized)" , ylab="log GDP (as proportion of mean)" ,
+    xlim=c(0,1) )
+mu <- link( m8.3 , data=data.frame( cid=1 , rugged_std=rugged_seq ) )
+mu_mean <- apply( mu , 2 , mean )
+mu_ci <- apply( mu , 2 , PI , prob=0.97 )
+lines( rugged_seq , mu_mean , lwd=2 )
+shade( mu_ci , rugged_seq , col=col.alpha(rangi2,0.3) )
+mtext("African nations")
+
+# plot on the RIGHT
+# plot non-Africa - cid=2
+d.A0 <- dd[ dd$cid==2 , ]
+plot( d.A0$rugged_std , d.A0$log_gdp_std , pch=1 , col="black" ,
+    xlab="ruggedness (standardized)" , ylab="log GDP (as proportion of mean)" ,
+    xlim=c(0,1) )
+mu <- link( m8.3 , data=data.frame( cid=2 , rugged_std=rugged_seq ) )
+mu_mean <- apply( mu , 2 , mean )
+mu_ci <- apply( mu , 2 , PI , prob=0.97 )
+lines( rugged_seq , mu_mean , lwd=2 )
+shade( mu_ci , rugged_seq )
+mtext("Non-African nations")
+```
+

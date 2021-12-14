@@ -1,0 +1,110 @@
+---
+title: "MCMC"
+author: "Haowei Lee"
+date: "12/14/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Import libraries
+```{r, message=FALSE}
+library(rethinking)
+```
+
+##### Review of prior pediction using the milk data of chapter 5
+<br>
+Import data
+```{r}
+# Import the data
+data(rugged)
+d <- rugged
+```
+<br>
+Preprocessing
+```{r}
+d$log_gdp <- log(d$rgdppc_2000)
+dd <- d[ complete.cases(d$rgdppc_2000) , ]
+dd$log_gdp_std <- dd$log_gdp / mean(dd$log_gdp)
+dd$rugged_std <- dd$rugged / max(dd$rugged)
+dd$cid <- ifelse( dd$cont_africa==1 , 1 , 2 )
+```
+<br>
+Build a model
+```{r}
+m8.3 <- quap(
+    alist(
+        log_gdp_std ~ dnorm( mu , sigma ) ,
+        mu <- a[cid] + b[cid]*( rugged_std - 0.215 ) ,
+        a[cid] ~ dnorm( 1 , 0.1 ) ,
+        b[cid] ~ dnorm( 0 , 0.3 ) ,
+        sigma ~ dexp( 1 )
+    ) , data=dd )
+precis( m8.3 , depth=2 )
+```
+<br>
+Extract the data to train MCMC
+```{r}
+dat_slim <- list(
+    log_gdp_std = dd$log_gdp_std,
+    rugged_std = dd$rugged_std,
+    cid = as.integer( dd$cid )
+)
+str(dat_slim)
+```
+<br>
+Build a MCMC model, with <b>one</b> chain
+```{r, message=FALSE, results='hide'}
+m9.1 <- ulam(
+    alist(
+        log_gdp_std ~ dnorm( mu , sigma ) ,
+        mu <- a[cid] + b[cid]*( rugged_std - 0.215 ) ,
+        a[cid] ~ dnorm( 1 , 0.1 ) ,
+        b[cid] ~ dnorm( 0 , 0.3 ) ,
+        sigma ~ dexp( 1 )
+    ) , data=dat_slim , chains=1 )
+```
+<br>
+Inspect the result: evaluate <b>n_eff</b> and <b>Rhat4</b>
+```{r}
+precis( m9.1 , depth=2 )
+```
+<br>
+Build a MCMC model, with <b>four</b> chain
+```{r, message=FALSE, results='hide'}
+m9.1 <- ulam(
+    alist(
+        log_gdp_std ~ dnorm( mu , sigma ) ,
+        mu <- a[cid] + b[cid]*( rugged_std - 0.215 ) ,
+        a[cid] ~ dnorm( 1 , 0.1 ) ,
+        b[cid] ~ dnorm( 0 , 0.3 ) ,
+        sigma ~ dexp( 1 )
+    ) , data=dat_slim , chains=4 , cores=4 )
+```
+<br>
+Inspect the training details
+```{r}
+show(m9.1)
+```
+<br>
+Inspect the result
+```{r}
+precis( m9.1 , 2 )
+```
+
+Evaluation<br>
+evaluation 1
+```{r}
+palette <- c("#191b43","#4d4e6d","#999aab","#4d4da6")
+traceplot( m9.1, col=c(palette[1], palette[2],
+                       palette[3], palette[4]) )
+```
+<br>
+evaluation 2
+```{r}
+trankplot( m9.1, col=c(palette[1], palette[2],
+                       palette[3], palette[4]) )
+```
+
